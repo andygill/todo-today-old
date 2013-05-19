@@ -25,6 +25,10 @@ Executable todo-today
     Build-Depends: 
          base                   >= 4.6,
          time                   >= 1.4,
+         old-locale              >= 1.0,
+         cmdargs               >= 0.10,
+         containers             >= 0.5,
+         directory              >= 1.2,
          data-default           >= 0.5
                   
     Main-is: Main.hs
