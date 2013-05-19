@@ -10,17 +10,27 @@ import Data.Time.Calendar
 import Task
 import Command
 import DB
+import Paths_todo_today
 
 todo = "todo"
+
+resolveTodoList xs
+  | "/Users/andy/Library/Haskell" `isPrefixOf` xs = "/Users/andy/.todo"
+  | "/Users/andy/git"             `isPrefixOf` xs = "todo"
+  | otherwise                                     = error $ "can not resolve location of todos from " ++ xs
+
 main = do
+        dir  <- getExecutablePath
+        let todo = resolveTodoList dir
         cmds <- parseCmds
         today <- todayIs
         db <- loadDB todo
-        command (Env db today) cmds
+        command (Env todo db today) cmds
 
 data Env = Env
-        { env_db    :: DB
-        , env_today :: Day
+        { env_todo  :: String   -- directory to find the todos
+        , env_db    :: DB       -- The database
+        , env_today :: Day      -- what is the date today
         }
 
 command :: Env -> TodoCmd -> IO ()
