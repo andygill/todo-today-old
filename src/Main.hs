@@ -60,5 +60,5 @@ command env (cmd@Add{}) = do
    putStrLn $ fullTaskLine env new_number task
 
 fullTitleLine = "    " ++ titleLine
-fullTaskLine env i t = rjust 3 ' ' (show i) ++ taskLine (env_today env) t ++ "!"
+fullTaskLine env i t = rjust 3 ' ' (show i) ++ " " ++ taskLine (env_today env) t ++ "!"
 

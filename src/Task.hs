@@ -121,7 +121,7 @@ readTaskDay today str =
            _ ->  Nothing
 
 titleLine :: String
-titleLine = "  Dur    Due-By     Do-On"
+titleLine = "  Dur   Due-By     Do-On"
 
 taskLine :: Day -> Task -> String
 taskLine today t = rjust 1 ' ' (showNSWD (t_done t))
