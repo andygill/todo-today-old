@@ -12,8 +12,6 @@ import Command
 import DB
 import Paths_todo_today
 
-todo = "todo"
-
 resolveTodoList xs
   | "/Users/andy/Library/Haskell" `isPrefixOf` xs = "/Users/andy/.todo"
   | "/Users/andy/git"             `isPrefixOf` xs = "todo"
@@ -25,7 +23,8 @@ main = do
         cmds <- parseCmds
         today <- todayIs
         db <- loadDB todo
-        command (Env todo db today) cmds
+        let (cmd, cmds1) = parseCmd cmds
+        command (Env todo db today) cmds1 cmd
 
 data Env = Env
         { env_todo  :: String   -- directory to find the todos
@@ -33,42 +32,52 @@ data Env = Env
         , env_today :: Day      -- what is the date today
         }
 
-command :: Env -> TodoCmd -> IO ()
-command env (cmd@Dump{}) = do
+data Cmd = Add
+         | Dump
+
+parseCmd :: TodoCmd -> (Cmd,TodoCmd)
+parseCmd (TodoCmd { description = [] }) = error "need mode: add | dump"
+parseCmd todoCmd@(TodoCmd { description = mode : args }) = (cmd, todoCmd { description = args })
+  where cmd = case mode of
+                "add"  -> Add
+                "dump" -> Dump
+
+command :: Env -> TodoCmd -> Cmd -> IO ()
+command env cmds Dump = do
   let db = env_db env
   putStrLn $ fullTitleLine
   sequence_ [ putStrLn $ fullTaskLine env i t
             | (i,t) <- Map.toList db
             ]
-command env (cmd@Add{}) = do
+command env cmds Add = do
    let today = env_today env
-   td_by <- case readTaskDay today (by cmd) of
+   td_by <- case readTaskDay today (by cmds) of
            Just td -> return td
-           Nothing -> error $ "bad format for date : " ++ show (by cmd)
+           Nothing -> error $ "bad format for date : " ++ show (by cmds)
 
-   td_do <- case readTaskDay today (do_ cmd) of
+   td_do <- case readTaskDay today (do_ cmds) of
            Just td -> return td
-           Nothing -> error $ "bad format for date : " ++ show (do_ cmd)
+           Nothing -> error $ "bad format for date : " ++ show (do_ cmds)
 
    let task = Task
-           { t_done = done cmd
-           , t_dur = case span isDigit (duration cmd) of
+           { t_done = done cmds
+           , t_dur = case span isDigit (duration cmds) of
                       ([],[]) -> Nothing
                       (n,"")  -> return $ read n
                       (n,"m") -> return $ read n
                       (n,"h") -> return $ read n * 60
-                      _ -> error $ "duration error " ++ show (duration cmd)
-           , t_task = mkLine $ unwords $ description cmd
+                      _ -> error $ "duration error " ++ show (duration cmds)
+           , t_task = mkLine $ unwords $ description cmds
            , t_by = td_by
            , t_do = td_do
            , t_pri = 0
            }
-   db <- loadDB todo
+   let db = env_db env
    let new_number = newUniqDB db
-   writeDB todo new_number task
+   writeDB (env_todo env) new_number task
    putStrLn $ fullTitleLine
    putStrLn $ fullTaskLine env new_number task
 
 fullTitleLine = "    " ++ titleLine
-fullTaskLine env i t = rjust 3 ' ' (show i) ++ " " ++ taskLine (env_today env) t ++ "!"
+fullTaskLine env i t = rjust 3 ' ' (show i) ++ " " ++ taskLine (env_today env) t
 
