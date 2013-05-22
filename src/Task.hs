@@ -33,19 +33,21 @@ instance Default Task where
 instance Schema Task where
         fields = [ field "done" t_done $ \ f r -> r { t_done = f }
                  , field "dur"  t_dur  $ \ f r -> r { t_dur = f }
-                 , field "by"   t_by   $ \ f r -> r { t_by = f }
                  , field "do"   t_do   $ \ f r -> r { t_do = f }
+                 , field "by"   t_by   $ \ f r -> r { t_by = f }
                  , field "pri"  t_pri  $ \ f r -> r { t_pri = f }
                  , field "task" t_task $ \ f r -> r { t_task = f }
                  ]
 
 data TaskDay = TaskDay Day
-             | SomeDay
+             | SomeDay          -- unknown day, perhaps soon
+             | SomeDayMaybe     -- unknown day in future
      deriving (Data, Typeable)
 
 instance Show TaskDay where
-        show (TaskDay day) = showGregorian day
-        show (SomeDay)     = "-"
+        show (TaskDay day)  = showGregorian day
+        show (SomeDay)      = "-"
+        show (SomeDayMaybe) = "+"
 
 
 y2k y | y < 50            = 2000 + y
@@ -72,6 +74,9 @@ instance Read TaskDay where
                 ] ++
                 [ (SomeDay,str1)
                 | ("-",  str1) <- lex   str0
+                ] ++
+                [ (SomeDayMaybe,str1)
+                | ("+",  str1) <- lex   str0
                 ]
 
 showDone :: Bool -> String
@@ -87,7 +92,7 @@ showDuration (Just m) | m < 30    = show m ++ "m"
 showTaskDay :: Day -> TaskDay -> String
 showTaskDay _today SomeDay = ""
 showTaskDay today (TaskDay day)
-        | diff == 0 = "Today"
+        | diff == 0 = "Today   "
         | diff == 1 = "Tomorrow"
         | diff > 0 && diff < 7 = the_day ++ "_" ++ show d ++ suff d
         | otherwise = rjust 2 '0' (show m) ++ "/" ++
@@ -121,13 +126,13 @@ readTaskDay today str =
            _ ->  Nothing
 
 titleLine :: String
-titleLine = "  Dur   Due-By     Do-On"
+titleLine = "  Dur    Do-On    Due-By"
 
 taskLine :: Day -> Task -> String
 taskLine today t = rjust 1 ' ' (showNSWD (t_done t))
          ++ " " ++ rjust 3 ' ' (showDuration (t_dur t))
-         ++ " " ++ rjust 9 ' ' (showTaskDay today (t_by t))
          ++ " " ++ rjust 9 ' ' (showTaskDay today (t_do t))
+         ++ " " ++ rjust 9 ' ' (showTaskDay today (t_by t))
          ++ " : " ++ showLine (t_task t)
 
 
