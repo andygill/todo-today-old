@@ -6,6 +6,7 @@ import Data.Map as Map
 import System.Directory
 import Data.List
 import Data.Time.Calendar
+import System.Cmd
 
 import Task
 import Command
@@ -102,7 +103,19 @@ command env cmds Add = do
    putStrLn $ fullTitleLine
    putStrLn $ fullTaskLine env new_number task
 command env cmds Edit = do
-        putStrLn $ "EDIT!"
+        let numbers = [ read n :: Int
+                      | n <- description cmds
+                      , not (Prelude.null n)
+                      , all isDigit n
+                      ]
+        if length numbers == 0 then do
+                putStrLn $ "edit needs #number to edit (edit 4, for example)"
+            else do
+                system $ "emacs " ++
+                        unwords [ env_todo env ++ "/" ++ show n ++ ".txt"
+                                | n <- numbers
+                                ]
+                return ()
 
 fullTitleLine = "    " ++ titleLine
 fullTaskLine env i t = rjust 3 ' ' (show i) ++ " " ++ taskLine (env_today env) t

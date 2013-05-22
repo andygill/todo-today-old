@@ -29,6 +29,7 @@ Executable todo-today
          cmdargs               >= 0.10,
          containers             >= 0.5,
          directory              >= 1.2,
+         process                >= 1.1,
          data-default           >= 0.5
                   
     Main-is: Main.hs
