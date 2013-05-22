@@ -22,7 +22,6 @@ loadDB dir_name = do
                 , all isDigit suff
                 , case suff of { '0':_ -> False ; _ -> True }
                 ]
-        print contents
         return $ Map.fromList contents
 
 dropSuffix xs | txt `isSuffixOf` xs = reverse $ drop (length txt) $ reverse xs
