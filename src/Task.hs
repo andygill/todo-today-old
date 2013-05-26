@@ -9,6 +9,7 @@ import Data.Typeable
 import Data.Time.Calendar
 import Data.Time.Clock
 import Data.Time.Format
+import Data.Time.LocalTime
 import System.Locale
 import Data.Row
 
@@ -164,7 +165,8 @@ instance Read Line where
 todayIs :: IO Day
 todayIs = do
         utc <- getCurrentTime
-        return $ utctDay utc
+        tz <- getCurrentTimeZone
+        return $ localDay $ utcToLocalTime tz utc
 
 main2 = do
         txt <- readFile "todo/2.txt"
