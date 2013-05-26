@@ -36,7 +36,6 @@ data Env = Env
 data Cmd = Add
          | Show
          | Soon Int     -- in future, #n, n is days to go
-         | Mod Int      -- mod a specific record number
          | Help
          | Edit
 
@@ -52,7 +51,6 @@ parseCmd todoCmd@(TodoCmd { description = mode : args }) = (cmd, todoCmd { descr
                 "today" -> Soon 0
                 "tomorrow" -> Soon 1
                 ('+':ns) | all isDigit ns -> Soon (read ns)
-                ('#':ns) | all isDigit ns -> Mod (read ns)
 
 command :: Env -> TodoCmd -> Cmd -> IO ()
 command env cmds (Soon n) = command env cmds' Add
@@ -60,8 +58,24 @@ command env cmds (Soon n) = command env cmds' Add
                      }
 
 command env cmds Help = do
-        putStrLn $ "modes: add | dump | today | +n | #n | edit"
+        putStrLn $ unlines
+                 [ "-- Commands (# == unimplemented)"
+                 , "-- Adding Tasks"
+                 , "% todo-today add   Remember the Milk    ;; undated task"
+                 , "% todo-today today Remember the Milk    ;; task to be done today"
+                 , "% todo-today +2    Remember the Milk    ;; task to be done in 2 days"
+                 , "-- Showing Taks"
+                 , "% todo-today                            ;; show todays task"
+                 , "% todo-today  2 3                       ;; Show tasks #2 & 3"
+                 , "# todo-today all                        ;; show *all* tasks"
+                 , "-- Editing Tasks"
+                 , "% todo-today edit 2 4                   ;; edit tasks #2 and #4"
+                 , "# todo-today need   2 3                   ;; mark #2 & 3 as N"
+                 , "# todo-today should 2 3                   ;; mark #2 & 3 as S"
+                 , "# todo-today want   2 3                   ;; mark #2 & 3 as W"
+                 , "# todo-today done   2 3                   ;; mark #2 & 3 as D"
 
+                 ]
 command env cmds Show = do
   let db = env_db env
   let xs = [ fullTaskLine env i t
@@ -103,19 +117,23 @@ command env cmds Add = do
    putStrLn $ fullTitleLine
    putStrLn $ fullTaskLine env new_number task
 command env cmds Edit = do
-        let numbers = [ read n :: Int
+                system $ "emacs " ++
+                        unwords [ env_todo env ++ "/" ++ show n ++ ".txt"
+                                | n <- numbers cmds
+                                ]
+                return ()
+
+
+numbers :: TodoCmd -> [Int]
+numbers cmds = if length nums == 0
+               then error "need at least one #number"
+               else nums
+  where
+          nums =       [ read n :: Int
                       | n <- description cmds
                       , not (Prelude.null n)
                       , all isDigit n
                       ]
-        if length numbers == 0 then do
-                putStrLn $ "edit needs #number to edit (edit 4, for example)"
-            else do
-                system $ "emacs " ++
-                        unwords [ env_todo env ++ "/" ++ show n ++ ".txt"
-                                | n <- numbers
-                                ]
-                return ()
 
 fullTitleLine = "    " ++ titleLine
 fullTaskLine env i t = rjust 3 ' ' (show i) ++ " " ++ taskLine (env_today env) t
