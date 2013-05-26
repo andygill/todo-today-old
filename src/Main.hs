@@ -38,7 +38,7 @@ data Cmd = Add
          | Soon Int     -- in future, #n, n is days to go
          | Help
          | Edit
-
+         | Status NSWD
 
 parseCmd :: TodoCmd -> (Cmd,TodoCmd)
 parseCmd todoCmd@(TodoCmd { description = [] }) = (Show, todoCmd)
@@ -50,6 +50,10 @@ parseCmd todoCmd@(TodoCmd { description = mode : args }) = (cmd, todoCmd { descr
                 "help" -> Help
                 "today" -> Soon 0
                 "tomorrow" -> Soon 1
+                "need"     -> Status N
+                "should"     -> Status S
+                "want"     -> Status W
+                "done"     -> Status D
                 ('+':ns) | all isDigit ns -> Soon (read ns)
 
 command :: Env -> TodoCmd -> Cmd -> IO ()
@@ -122,6 +126,16 @@ command env cmds Edit = do
                                 | n <- numbers cmds
                                 ]
                 return ()
+command env cmds (Status s) = do
+                updateTasks env cmds (\ t -> t { t_done = Just s })
+                return ()
+
+updateTasks env cmds f = do
+        sequence_ [ writeDB (env_todo env) n (f t)
+                  | n <- numbers cmds
+                  , Just t <- [Map.lookup n (env_db env)]
+                  ]
+        return ()
 
 
 numbers :: TodoCmd -> [Int]
