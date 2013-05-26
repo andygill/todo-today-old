@@ -4,6 +4,8 @@ import Data.Char
 import Data.Map as Map
 import System.Directory
 import Data.List
+import Control.DeepSeq
+import System.IO
 
 import Task
 import Command
@@ -14,7 +16,9 @@ loadDB :: String -> IO DB
 loadDB dir_name = do
         dir <- getDirectoryContents dir_name
         contents <- sequence
-                [ do txt <- readFile (dir_name ++ "/" ++ f)
+                [ do h <- openFile (dir_name ++ "/" ++ f) ReadMode
+                     txt <- hGetContents h
+                     txt `deepseq` hClose h
                      return (read suff,readTask txt)
                 | f <- dir
                 , ".txt" `isSuffixOf` f
