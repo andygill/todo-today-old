@@ -16,7 +16,7 @@ import Data.Row
 type TaskId = Int
 
 data NSWD = N | S | W | D
-     deriving (Show, Read, Data, Typeable)
+     deriving (Eq, Ord, Show, Read, Data, Typeable)
 
 data Task = Task
      { t_done	:: !(Maybe NSWD)        -- ^ Have you done this, and do you want to
