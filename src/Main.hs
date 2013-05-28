@@ -39,6 +39,7 @@ data Cmd = Add
          | Help
          | Edit
          | Status NSWD
+         | Gc
 
 parseCmd :: TodoCmd -> (Cmd,TodoCmd)
 parseCmd todoCmd@(TodoCmd { description = [] }) = (Show, todoCmd)
@@ -56,6 +57,7 @@ parseCmd todoCmd@(TodoCmd { description = mode : args })
                 "should"     -> Status S
                 "want"     -> Status W
                 "done"     -> Status D
+                "gc"      -> Gc
                 ('+':ns) | all isDigit ns -> Soon (read ns)
 
 command :: Env -> TodoCmd -> Cmd -> IO ()
@@ -71,16 +73,16 @@ command env cmds Help = do
                  , "% todo-today today Remember the Milk    ;; task to be done today"
                  , "% todo-today +2    Remember the Milk    ;; task to be done in 2 days"
                  , "-- Showing Taks"
-                 , "% todo-today                            ;; show todays task"
-                 , "% todo-today  2 3                       ;; Show tasks #2 & 3"
-                 , "# todo-today all                        ;; show *all* tasks"
+                 , "# todo-today                            ;; show todays task"
+                 , "# todo-today  2 3                       ;; Show tasks #2 & 3"
+                 , "% todo-today show                        ;; show *all* tasks"
                  , "-- Editing Tasks"
                  , "% todo-today edit 2 4                   ;; edit tasks #2 and #4"
-                 , "# todo-today need   2 3                   ;; mark #2 & 3 as N"
-                 , "# todo-today should 2 3                   ;; mark #2 & 3 as S"
-                 , "# todo-today want   2 3                   ;; mark #2 & 3 as W"
-                 , "# todo-today done   2 3                   ;; mark #2 & 3 as D"
-
+                 , "% todo-today need   2 3                   ;; mark #2 & 3 as N"
+                 , "% todo-today should 2 3                   ;; mark #2 & 3 as S"
+                 , "% todo-today want   2 3                   ;; mark #2 & 3 as W"
+                 , "% todo-today done   2 3                   ;; mark #2 & 3 as D"
+                 , "% todo-today gc                          ;; delete done task"
                  ]
 command env cmds Show = do
   let db = env_db env
@@ -131,6 +133,17 @@ command env cmds Edit = do
 command env cmds (Status s) = do
                 updateTasks env cmds (\ t -> t { t_done = Just s })
                 return ()
+command env cmds Gc = do
+        let to_gc = [ i
+                    | (i,t) <- Map.toList (env_db env)
+                    , t_done t == Just D
+                    ]
+        sequence_ [ renameFile (env_todo env ++ "/" ++ show n ++ ".txt")
+                               (env_todo env ++ "/" ++ show n ++ ".done")
+                  | n <- to_gc
+                  ]
+        putStrLn $ "Deleted Done Tasks: " ++ show to_gc
+
 
 updateTasks env cmds f = do
         sequence_ [ writeDB (env_todo env) n (f t)
