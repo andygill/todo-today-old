@@ -42,7 +42,9 @@ data Cmd = Add
 
 parseCmd :: TodoCmd -> (Cmd,TodoCmd)
 parseCmd todoCmd@(TodoCmd { description = [] }) = (Show, todoCmd)
-parseCmd todoCmd@(TodoCmd { description = mode : args }) = (cmd, todoCmd { description = args })
+parseCmd todoCmd@(TodoCmd { description = mode : args })
+        | all isDigit mode = (Show, todoCmd)
+        | otherwise = (cmd, todoCmd { description = args })
   where cmd = case mode of
                 "add"  -> Add
                 "show" -> Show
