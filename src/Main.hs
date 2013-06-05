@@ -7,6 +7,7 @@ import System.Directory
 import Data.List as L
 import Data.Time.Calendar
 import System.Cmd
+import Data.Monoid
 
 import Task
 import Command
@@ -33,35 +34,44 @@ data Env = Env
         , env_today :: Day      -- what is the date today
         }
 
-data Cmd = Add
-         | Show
-         | Soon Int     -- in future, #n, n is days to go
+data Cmd = Add          Selector
+         | Show         Selector
+         | Soon Int     Selector -- in future, #n, n is days to go
          | Help
-         | Edit
-         | Status NSWD
+         | Edit         Selector
+         | Status NSWD  Selector
          | Gc
+  deriving Show
+
+data Selector = Selector [Int]
+              | None
+  deriving Show
+
+select :: (Int, t0) -> Selector -> Bool
+select (i,t) (Selector nums) = i `elem` nums
+select _     None      = True
 
 parseCmd :: TodoCmd -> (Cmd,TodoCmd)
-parseCmd todoCmd@(TodoCmd { description = [] }) = (Show, todoCmd)
+parseCmd todoCmd@(TodoCmd { description = [] }) = (Show None, todoCmd)
 parseCmd todoCmd@(TodoCmd { description = mode : args })
-        | all isDigit mode = (Show, todoCmd)
+        | all isDigit mode = (Show (numbers (mode : args)), todoCmd)
         | otherwise = (cmd, todoCmd { description = args })
   where cmd = case mode of
-                "add"  -> Add
-                "show" -> Show
-                "edit" -> Edit
+                "add"  -> Add (numbers args)
+                "show" -> Show (numbers args)
+                "edit" -> Edit (numbers args)
                 "help" -> Help
-                "today" -> Soon 0
-                "tomorrow" -> Soon 1
-                "need"     -> Status N
-                "should"     -> Status S
-                "want"     -> Status W
-                "done"     -> Status D
-                "gc"      -> Gc
-                ('+':ns) | all isDigit ns -> Soon (read ns)
+                "today" -> Soon 0 (numbers args)
+                "tomorrow" -> Soon 1 (numbers args)
+                "need"     -> Status N (numbers args)
+                "should"   -> Status S (numbers args)
+                "want"     -> Status W (numbers args)
+                "done"     -> Status D (numbers args)
+                "gc"       -> Gc
+                ('+':ns) | all isDigit ns -> Soon (read ns) (numbers args)
 
 command :: Env -> TodoCmd -> Cmd -> IO ()
-command env cmds (Soon n) = command env cmds' Add
+command env cmds (Soon n sel) = command env cmds' (Add sel)
   where cmds' = cmds { do_ = show n
                      }
 
@@ -84,13 +94,13 @@ command env cmds Help = do
                  , "% todo-today done   2 3                   ;; mark #2 & 3 as D"
                  , "% todo-today gc                          ;; delete done task"
                  ]
-command env cmds Show = do
+command env cmds (Show sel) = do
   let db = env_db env
   let xs = [ (t, fullTaskLine env i t)
             | (i,t) <- Map.toList db
-            , Prelude.null (description cmds) ||
-                show i `elem` (description cmds) ||
-                showNSWD (t_done t) `elem` (description cmds)
+            , select (i,t) sel
+--            Prelude.null nums || i `elem` nums
+-- TODO                || showNSWD (t_done t) `elem` (description cmds)
            ]
   let xs1 = sortBy (\ (t1,_) (t2,_) -> t_do t1 `compare` t_do t2) xs
 
@@ -100,7 +110,7 @@ command env cmds Show = do
           putStrLn $ fullTitleLine
           putStr $ unlines $ xs2
 
-command env cmds Add = do
+command env cmds (Add None) = do
    let today = env_today env
    td_by <- case readTaskDay today (by cmds) of
            Just td -> return td
@@ -128,15 +138,51 @@ command env cmds Add = do
    writeDB (env_todo env) new_number task
    putStrLn $ fullTitleLine
    putStrLn $ fullTaskLine env new_number task
-command env cmds Edit = do
+command env cmds cmd@(Add (Selector sel)) = do
+   let today = env_today env
+   td_by <- case readTaskDay today (by cmds) of
+           Just td -> return td
+           Nothing -> error $ "bad format for date : " ++ show (by cmds)
+
+   td_do <- case readTaskDay today (do_ cmds) of
+           Just td -> return td
+           Nothing -> error $ "bad format for date : " ++ show (do_ cmds)
+
+
+   -- Now, change what need changes
+   print (cmds,cmd,td_by,td_do)
+   updateTasks env sel $ \ task -> task
+        { t_by = td_by <> t_by task
+        , t_do = td_do <> t_do task
+        }
+{-
+   Task {
+        t_by = case t_by task of
+
+                Ttd_do
+-}
+{-
+      Task { t_done	:: !(Maybe NSWD)        -- ^ Have you done this, and do you want to
+     , t_dur    :: !(Maybe Int)	        -- ^ How long, in minutes, to complete
+     , t_by	:: !TaskDay	        -- ^ When must this be done by
+     , t_do	:: !TaskDay	        -- ^ When do I plan to to/review this.
+     , t_pri    :: !Rational            -- ^ Priority when sorting
+     , t_task 	:: !Line              	-- ^ Description of what needs done
+     }
+-}
+command env cmds (Edit sel) = do
                 system $ "emacs " ++
                         unwords [ env_todo env ++ "/" ++ show n ++ ".txt"
-                                | n <- numbers cmds
+                                | n <- case sel of
+                                         None -> error "can not edit None"
+                                         Selector nums -> nums
                                 ]
                 return ()
-command env cmds (Status s) = do
-                updateTasks env cmds (\ t -> t { t_done = Just s })
+command env cmds (Status s None) = error "can not change status of None"
+command env cmds (Status s (Selector sel)) = do
+                updateTasks env sel (\ t -> t { t_done = Just s })
                 return ()
+
 command env cmds Gc = do
         let to_gc = [ i
                     | (i,t) <- Map.toList (env_db env)
@@ -148,25 +194,24 @@ command env cmds Gc = do
                   ]
         putStrLn $ "Deleted Done Tasks: " ++ show to_gc
 
-
-updateTasks env cmds f = do
+updateTasks :: Env -> [Int] -> (Task -> Task) -> IO ()
+updateTasks env nums f = do
         sequence_ [ writeDB (env_todo env) n (f t)
-                  | n <- numbers cmds
+                  | n <- nums
                   , Just t <- [Map.lookup n (env_db env)]
                   ]
         return ()
 
 
-numbers :: TodoCmd -> [Int]
-numbers cmds = if length nums == 0
-               then error "need at least one #number"
-               else nums
-  where
-          nums =       [ read n :: Int
-                      | n <- description cmds
-                      , not (Prelude.null n)
-                      , all isDigit n
-                      ]
+numbers :: [String] -> Selector
+numbers cmds | Prelude.null nums = None
+             | otherwise         = Selector nums
+   where
+        nums = [ read n :: Int
+               | n <- cmds
+               , not (Prelude.null n)
+               , all isDigit n
+               ]
 
 fullTitleLine = "    " ++ titleLine
 fullTaskLine env i t = rjust 3 ' ' (show i) ++ " " ++ taskLine (env_today env) t

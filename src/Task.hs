@@ -12,6 +12,7 @@ import Data.Time.Format
 import Data.Time.LocalTime
 import System.Locale
 import Data.Row
+import Data.Monoid
 
 type TaskId = Int
 
@@ -44,6 +45,11 @@ data TaskDay = TaskDay Day
              | SomeDay          -- unknown day, perhaps soon
              | SomeDayMaybe     -- unknown day in future
      deriving (Data, Typeable, Eq, Ord)
+
+instance Monoid TaskDay where
+  mempty = SomeDay
+  SomeDay `mappend` d = d
+  d `mappend` _       = d
 
 instance Show TaskDay where
         show (TaskDay day)  = showGregorian day
