@@ -43,7 +43,7 @@ instance Schema Task where
 data TaskDay = TaskDay Day
              | SomeDay          -- unknown day, perhaps soon
              | SomeDayMaybe     -- unknown day in future
-     deriving (Data, Typeable)
+     deriving (Data, Typeable, Eq, Ord)
 
 instance Show TaskDay where
         show (TaskDay day)  = showGregorian day
