@@ -4,7 +4,7 @@ import Data.Char
 import System.Environment
 import Data.Map as Map
 import System.Directory
-import Data.List
+import Data.List as L
 import Data.Time.Calendar
 import System.Cmd
 
@@ -86,15 +86,19 @@ command env cmds Help = do
                  ]
 command env cmds Show = do
   let db = env_db env
-  let xs = [ fullTaskLine env i t
+  let xs = [ (t, fullTaskLine env i t)
             | (i,t) <- Map.toList db
             , Prelude.null (description cmds) ||
                 show i `elem` (description cmds) ||
                 showNSWD (t_done t) `elem` (description cmds)
            ]
-  if Prelude.null xs then return () else do
+  let xs1 = sortBy (\ (t1,_) (t2,_) -> t_do t1 `compare` t_do t2) xs
+
+  let xs2 = L.map snd xs1
+
+  if Prelude.null xs2 then return () else do
           putStrLn $ fullTitleLine
-          putStr $ unlines xs
+          putStr $ unlines $ xs2
 
 command env cmds Add = do
    let today = env_today env
