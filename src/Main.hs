@@ -188,11 +188,23 @@ command env cmds Gc = do
                     | (i,t) <- Map.toList (env_db env)
                     , t_done t == Just D
                     ]
+        let not_to_gc =
+                    [ i
+                    | (i,t) <- Map.toList (env_db env)
+                    , t_done t /= Just D
+                    ]
         sequence_ [ renameFile (env_todo env ++ "/" ++ show n ++ ".txt")
                                (env_todo env ++ "/" ++ show n ++ ".done")
                   | n <- to_gc
                   ]
         putStrLn $ "Deleted Done Tasks: " ++ show to_gc
+        updateTasks env not_to_gc $ \ task -> task
+          { t_do = case t_do task of
+                  SomeDay      -> SomeDay
+                  TaskDay date -> TaskDay $ max (env_today env) date
+                  SomeDayMaybe -> SomeDayMaybe
+          }
+        putStrLn $ "Moving skipped tasks to today"
 
 updateTasks :: Env -> [Int] -> (Task -> Task) -> IO ()
 updateTasks env nums f = do
