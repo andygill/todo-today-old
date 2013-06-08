@@ -35,8 +35,8 @@ data Env = Env
         }
 
 data Cmd = Add          Selector
-         | Show         Selector
-         | Soon Int     Selector -- in future, #n, n is days to go
+         | Show         Bool Selector           -- true when only show upto today.
+         | Soon Int     Selector                -- in future, #n, n is days to go
          | Help
          | Edit         Selector
          | Status NSWD  Selector
@@ -52,13 +52,13 @@ select (i,t) (Selector nums) = i `elem` nums
 select _     None      = True
 
 parseCmd :: TodoCmd -> (Cmd,TodoCmd)
-parseCmd todoCmd@(TodoCmd { description = [] }) = (Show None, todoCmd)
+parseCmd todoCmd@(TodoCmd { description = [] }) = (Show True None, todoCmd)
 parseCmd todoCmd@(TodoCmd { description = mode : args })
-        | all isDigit mode = (Show (numbers (mode : args)), todoCmd)
+        | all isDigit mode = (Show False (numbers (mode : args)), todoCmd)
         | otherwise = (cmd, todoCmd { description = args })
   where cmd = case mode of
                 "add"  -> Add (numbers args)
-                "show" -> Show (numbers args)
+                "show" -> Show False (numbers args)
                 "edit" -> Edit (numbers args)
                 "help" -> Help
                 "today" -> Soon 0 (numbers args)
@@ -94,11 +94,15 @@ command env cmds Help = do
                  , "% todo-today done   2 3                   ;; mark #2 & 3 as D"
                  , "% todo-today gc                          ;; delete done task"
                  ]
-command env cmds (Show sel) = do
+command env cmds (Show today_only sel) = do
+  print (today_only,cmds)
   let db = env_db env
   let xs = [ (t, fullTaskLine env i t)
             | (i,t) <- Map.toList db
             , select (i,t) sel
+            , if today_only
+              then TaskDay (env_today env) >= t_do t
+              else True
 --            Prelude.null nums || i `elem` nums
 -- TODO                || showNSWD (t_done t) `elem` (description cmds)
            ]
