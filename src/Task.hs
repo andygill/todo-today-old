@@ -27,7 +27,7 @@ data Task = Task
      , t_pri    :: !Rational            -- ^ Priority when sorting
      , t_task 	:: !Line              	-- ^ Description of what needs done
      }
-     deriving (Show, Read, Data, Typeable)
+     deriving (Show, Read, Data, Typeable, Eq)
 
 instance Default Task where
         def = Task Nothing Nothing SomeDay SomeDay 0 (mkLine "")
@@ -41,8 +41,8 @@ instance Schema Task where
                  , field "task" t_task $ \ f r -> r { t_task = f }
                  ]
 
-data TaskDay = TaskDay Day
-             | SomeDay          -- unknown day, perhaps soon
+data TaskDay = SomeDay          -- unknown day, perhaps soon
+             | TaskDay Day
              | SomeDayMaybe     -- unknown day in future
      deriving (Data, Typeable, Eq, Ord)
 
@@ -153,7 +153,7 @@ showTask :: Task -> String
 showTask = show . Row
 
 newtype Line = Line String
-        deriving (Data, Typeable)
+        deriving (Data, Typeable, Eq)
 
 mkLine :: String -> Line
 mkLine = Line . unwords . words

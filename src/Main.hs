@@ -196,9 +196,11 @@ command env cmds Gc = do
 
 updateTasks :: Env -> [Int] -> (Task -> Task) -> IO ()
 updateTasks env nums f = do
-        sequence_ [ writeDB (env_todo env) n (f t)
+        sequence_ [ writeDB (env_todo env) n t'
                   | n <- nums
                   , Just t <- [Map.lookup n (env_db env)]
+                  , let t' = f t
+                  , t' /= t     -- there is something that changed
                   ]
         return ()
 
