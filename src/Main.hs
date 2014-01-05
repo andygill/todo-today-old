@@ -95,7 +95,7 @@ command env cmds Help = do
                  , "% todo-today gc                          ;; delete done task"
                  ]
 command env cmds (Show today_only sel) = do
-  print (today_only,cmds)
+  print ("Show",today_only,cmds)
   let db = env_db env
   let xs = [ (t, fullTaskLine env i t)
             | (i,t) <- Map.toList db
@@ -154,7 +154,7 @@ command env cmds cmd@(Add (Selector sel)) = do
 
 
    -- Now, change what need changes
-   print (cmds,cmd,td_by,td_do)
+   print ("Add Select",sel,cmds,cmd,td_by,td_do)
    updateTasks env sel $ \ task -> task
         { t_by = td_by <> t_by task
         , t_do = td_do <> t_do task
