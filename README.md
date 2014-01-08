@@ -1,12 +1,17 @@
 A simple TODO application. Based on the concept of when things
-are done, rather than when they are due.
+are done, rather than when they are due. Things are stored in
+a trivial single-file format.
+
+## Adding things
 
 Adding things is easy
 
-```
+```{.bash}
 % todo-today +0 Read my email today
-% todo-today +1 Task for tomorrow
+% todo-today +1 Go to the zoo
 ```
+
+`+` is an alias for `+0`.
 
 Listing things is easy
 
