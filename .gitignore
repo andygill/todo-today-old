@@ -5,3 +5,4 @@ dev/
 *.hi
 todo/
 web/
+.todo/
