@@ -1,5 +1,6 @@
 -- Rework of the TODO framework
 
+import Control.Monad
 import Data.Char
 import qualified Data.Map as M
 import Data.Map (Map)
@@ -8,10 +9,11 @@ import Data.Time.Clock
 import Data.Time.Format
 import Data.Time.LocalTime
 import System.Environment
+import System.Exit
 import System.Directory
 import System.Locale
-
-
+import System.Posix.Directory
+import System.Process
 --------------------------------------------------------------------
 
 rjust :: Int -> Char -> String -> String
@@ -197,18 +199,46 @@ archive x = case interp x of
               Just {} -> Nothing
 
 --------------------------------------------------------------------
+-- Directory, File, and message.
+commit :: FilePath -> String -> IO ()
+commit file msg = do
+  (ex,sto,ste) <- readProcessWithExitCode "git" [ "commit", file, "-m", msg ] ""
+  case ex of
+    ExitSuccess -> return ()
+    ExitFailure _ ->
+        -- CHECK that there is no diff?
+        return ()
+
+--------------------------------------------------------------------
 
 main = do
   utc <- getCurrentTime
-  print utc
+--  print utc
   tz <- getCurrentTimeZone
   let today = localDay $ utcToLocalTime tz utc
 --  print today
-  let todo_dir     = ".todo"
-  let todo_file    = todo_dir ++ "/TODO"
-  let todo_done    = todo_dir ++ "/DONE"
-  let todo_update  = todo_dir ++ "/TODO.up"
-  let todo_archive = todo_dir ++ "/archive/" ++ show utc
+
+  env <- getEnvironment
+--  putStr $ unlines $ map show env
+
+  let todo_dir = case lookup "TODO_TODAY" env of
+                   Just dir -> dir
+                   Nothing -> case lookup "HOME" env of
+                                Just dir -> dir ++ "/.todo"
+                                Nothing -> error "can not find TODO_TODAY or HOME"
+
+--  print todo_dir
+  ok <- doesDirectoryExist todo_dir
+  unless ok $ do
+    error $ "Can not find directory : " ++ show todo_dir
+
+  changeWorkingDirectory todo_dir
+
+  let todo_file = "TODO"
+  ok <- doesFileExist todo_file
+  unless ok $ do
+    error $ "Can not find file : " ++ show todo_file ++ ", in " ++ show todo_dir
+
   txt <- readFile todo_file
   let db = readTaskDB txt
 --  print db
@@ -221,8 +251,12 @@ main = do
   let showing db  = putStrLn $ showTaskDB today db
   -- Writes a new copy
   let updating db = do
-          print db
-          writeFile todo_update $ showTaskDB today db
+          commit todo_file "before GC"
+--          print db
+          renameFile todo_file (todo_file ++ ".bk")
+          writeFile todo_file $ showTaskDB today db
+          commit todo_file "after GC"
+
 -- For now
 --          renameFile todo_file todo_archive
 --          renameFile todo_update todo_file
@@ -231,13 +265,19 @@ main = do
   let adding n xs = updating $ addTaskDB (addDays n today,Task Nothing (unwords xs)) db
 
   let gc db = do
-          print db
+--          print db
           let new_db = ()
               arch_db@(TaskDB aDB) = interpDB archive db
-          appendFile todo_done $ showTaskDB (ModifiedJulianDay 0) arch_db
+--          appendFile todo_done $ showTaskDB (ModifiedJulianDay 0) arch_db
           updating $ interpDB interp db
           putStrLn $ "Archived " ++ show (M.size aDB) ++ " task(s)"
           return ()
+
+  let edit = do
+          commit todo_file "before edit"
+          callProcess "emacs" [todo_file]
+          commit todo_file "after edit"
+          -- TODO: reload the db; call gc automatically
 
   case xs of
    []                  -> showing $ interpDB (onDay 0)
@@ -246,6 +286,7 @@ main = do
    [n] | all isDigit n && not (null n)
                       -> showing $ interpDB (onDay (read n))
                                  $ db
+   ["edit"]           -> edit
    ["gc"]             -> gc db
    (n:rest) | all isDigit n && not (null n)
                       -> adding (read n) rest
