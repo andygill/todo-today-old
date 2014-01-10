@@ -59,18 +59,23 @@ readsDay str0 =  [ (fromGregorian (y2k year) month day,str5)
 --------------------------------------------------------------------
 
 data Action = Move Integer       -- move back something
+            | Day Day           -- when to do
             | Done               -- finished
             | Abandon            -- abandoned
 --            | Recurring        -- Completed a recurring task
 
 instance Show Action where
   show (Move n)  = show n
+  show (Day d)   = show d
   show Done      = "D"
   show Abandon   = "A"
 --  show Recurring = "R"
 
 instance Read Action where
   readsPrec n str0 =
+          [ (Day d,str1)
+          | (d, str1) <- readsDay str0
+          ] ++
           [ (Move n,str1)
           | (n, str1) <- readsPrec n str0
           ] ++
@@ -156,8 +161,8 @@ showTaskDB today (TaskDB db) = unlines
         , ln <- lns
         ]
 
-readTaskDB :: String -> TaskDB
-readTaskDB str0 = TaskDB $ M.fromListWith (flip (++)) $ parse today
+readTaskDB :: Day -> String -> TaskDB
+readTaskDB today str0 = TaskDB $ M.fromListWith (flip (++)) $ parse today
         [ case readsPrec 0 txt of
            [(ln,"")] -> ln :: Line
            other -> error $ "readTaskDB failed on line  " ++ show n ++ " : " ++ show txt
@@ -189,14 +194,9 @@ interp :: (Day,Task) -> Maybe (Day,Task)
 interp i@(_,Task Nothing _) = return i
 interp (day,Task (Just t) txt) = case t of
         Move n  -> return (addDays n day,Task Nothing txt)      -- offset from do-date
+        Day d   -> return (d,Task Nothing txt)
         Done    -> Nothing       -- plz delete
         Abandon -> Nothing       -- plz delete
-
--- If the interp deletes it, then the archive picks it up.
-archive :: (Day,Task) -> Maybe (Day,Task)
-archive x = case interp x of
-              Nothing -> return x
-              Just {} -> Nothing
 
 --------------------------------------------------------------------
 -- Directory, File, and message.
@@ -240,7 +240,7 @@ main = do
     error $ "Can not find file : " ++ show todo_file ++ ", in " ++ show todo_dir
 
   txt <- readFile todo_file
-  let db = readTaskDB txt
+  let db = readTaskDB today txt
 --  print db
 
   let onDay off i@(d,_) | d == addDays off today = return i
@@ -252,9 +252,10 @@ main = do
   -- Writes a new copy
   let updating db = do
           commit todo_file "before GC"
---          print db
           renameFile todo_file (todo_file ++ ".bk")
-          writeFile todo_file $ showTaskDB today db
+          writeFile (todo_file ++ ".new") $ showTaskDB today db
+          -- Becase showTaskDB is lazy, so the db build have bottoms.
+          renameFile (todo_file ++ ".new") todo_file
           commit todo_file "after GC"
 
 -- For now
@@ -265,13 +266,7 @@ main = do
   let adding n xs = updating $ addTaskDB (addDays n today,Task Nothing (unwords xs)) db
 
   let gc db = do
---          print db
-          let new_db = ()
-              arch_db@(TaskDB aDB) = interpDB archive db
---          appendFile todo_done $ showTaskDB (ModifiedJulianDay 0) arch_db
           updating $ interpDB interp db
-          putStrLn $ "Archived " ++ show (M.size aDB) ++ " task(s)"
-          return ()
 
   let edit = do
           commit todo_file "before edit"
