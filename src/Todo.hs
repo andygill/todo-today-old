@@ -174,8 +174,6 @@ readTaskDB today str0 = TaskDB $ M.fromListWith (flip (++)) $ parse today
         parse date (Item task:rest)    =  (date,[task]) : parse date rest
         parse date []                  = []
 
-db = TaskDB (M.fromList [(today,[Task Nothing "Hello"]),(tomorrow,[Task (Just Done) "World"])])
-
 --------------------------------------------------------------------
 
 interpDB :: ((Day,Task) -> Maybe (Day,Task)) -> TaskDB -> TaskDB
@@ -190,11 +188,13 @@ interpDB f (TaskDB db) = TaskDB
 addTaskDB :: (Day,Task) -> TaskDB -> TaskDB
 addTaskDB (day,task) (TaskDB db) = TaskDB $ M.insertWith (++) day [task] db
 
-interp :: (Day,Task) -> Maybe (Day,Task)
-interp i@(_,Task Nothing _) = return i
-interp (day,Task (Just t) txt) = case t of
-        Move n  -> return (addDays n day,Task Nothing txt)      -- offset from do-date
-        Day d   -> return (d,Task Nothing txt)
+-- This is the heart of the todo, the GC/interp function.
+interp :: Day -> (Day,Task) -> Maybe (Day,Task)
+interp today (day,Task Nothing txt)
+        = return (max today $ day, Task Nothing txt)
+interp today (day,Task (Just t) txt) = case t of
+        Move n  -> return (max today $ addDays n day,Task Nothing txt)      -- offset from do-date
+        Day d   -> return (max today $ d,Task Nothing txt)
         Done    -> Nothing       -- plz delete
         Abandon -> Nothing       -- plz delete
 
@@ -266,7 +266,7 @@ main = do
   let adding n xs = updating $ addTaskDB (addDays n today,Task Nothing (unwords xs)) db
 
   let gc db = do
-          updating $ interpDB interp db
+          updating $ interpDB (interp today) db
 
   let edit = do
           commit todo_file "before edit"
@@ -297,4 +297,6 @@ main = do
 
 today = fromGregorian 2014 1 8
 tomorrow = addDays 1 today
+-- db = TaskDB (M.fromList [(today,[Task Nothing "Hello"]),(tomorrow,[Task (Just Done) "World"])])
+
 
